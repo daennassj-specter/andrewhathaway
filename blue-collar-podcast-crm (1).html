@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blue Collar Podcast CRM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{
+  --navy-deep:#0B2A3D;
+  --navy:#123B54;
+  --blueprint:#1B4F72;
+  --paper:#F4F6F5;
+  --paper-dim:#E7EBEA;
+  --steel:#5C7A89;
+  --ink:#0E1F29;
+  --orange:#FF6A1A;
+  --orange-dim:#FFE3D1;
+  --line:#D7DEDD;
+  --white:#FFFFFF;
+  --green:#1F8A5F;
+  --amber:#B9800A;
+  --red:#C23B3B;
+  --font-display:'Barlow Condensed',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+@font-face{font-family:'Barlow Condensed';src:local('Barlow Condensed');}
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font-body);background:var(--paper);color:var(--ink);font-size:14px;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:13px;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:#c4cccb;border-radius:4px;}
+
+#app{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+#sidebar{width:220px;flex-shrink:0;background:var(--navy-deep);color:#CFE0E8;background-image:
+  linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size:22px 22px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.brand{padding:20px 18px 14px;border-bottom:1px solid rgba(255,255,255,0.1);}
+.brand .stamp{font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:0.5px;color:#fff;text-transform:uppercase;line-height:1.05;}
+.brand .sub{font-family:var(--font-mono);font-size:10px;color:var(--orange);letter-spacing:1.5px;margin-top:4px;text-transform:uppercase;}
+nav{padding:12px 10px;flex:1;}
+.nav-group{margin-bottom:14px;}
+.nav-label{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:#5D8296;padding:8px 10px 4px;text-transform:uppercase;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;color:#B9CFDA;font-size:13.5px;font-weight:500;cursor:pointer;transition:.12s;border-left:3px solid transparent;}
+.nav-item:hover{background:rgba(255,255,255,0.06);color:#fff;}
+.nav-item.active{background:rgba(255,106,26,0.13);color:#fff;border-left:3px solid var(--orange);}
+.nav-item .dot{width:6px;height:6px;border-radius:50%;background:#3d5c6c;flex-shrink:0;}
+.nav-item.active .dot{background:var(--orange);}
+.sidebar-foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.1);font-family:var(--font-mono);font-size:10.5px;color:#6E8FA0;}
+
+/* MAIN */
+#main{flex:1;min-width:0;display:flex;flex-direction:column;}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;}
+#topbar h1{font-family:var(--font-display);font-weight:700;font-size:24px;letter-spacing:0.3px;text-transform:uppercase;color:var(--navy-deep);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.search-box{position:relative;}
+.search-box input{width:260px;padding:8px 12px 8px 32px;border:1px solid var(--line);border-radius:7px;background:var(--paper);}
+.search-box::before{content:'⌕';position:absolute;left:11px;top:7px;color:var(--steel);font-size:15px;}
+.btn{border:none;border-radius:7px;padding:8px 14px;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;transition:.12s;}
+.btn-primary{background:var(--orange);color:#fff;}
+.btn-primary:hover{background:#e85e10;}
+.btn-outline{background:var(--white);border:1px solid var(--line);color:var(--navy-deep);}
+.btn-outline:hover{background:var(--paper-dim);}
+.btn-ghost{background:transparent;color:var(--steel);}
+.btn-ghost:hover{color:var(--ink);}
+.btn-danger{background:#fff;border:1px solid #f0c4c4;color:var(--red);}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:6px;}
+
+#content{flex:1;padding:24px 26px 60px;overflow-x:hidden;}
+.view{display:none;}
+.view.active{display:block;animation:fade .18s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+/* Cards */
+.card{background:var(--white);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+.section-title{font-family:var(--font-display);font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:.3px;color:var(--navy-deep);margin-bottom:12px;}
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;margin-bottom:20px;}
+.kpi{background:var(--white);border:1px solid var(--line);border-radius:10px;padding:13px 14px;cursor:pointer;transition:.12s;border-left:3px solid var(--steel);}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(11,42,61,0.08);}
+.kpi .num{font-family:var(--font-mono);font-weight:600;font-size:24px;color:var(--navy-deep);}
+.kpi .lbl{font-size:11px;color:var(--steel);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-top:2px;}
+
+.grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px;}
+@media(max-width:1100px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+
+/* funnel */
+.funnel-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12.5px;}
+.funnel-row .flabel{width:150px;color:var(--ink);font-weight:600;flex-shrink:0;}
+.funnel-bar-bg{flex:1;height:16px;background:var(--paper-dim);border-radius:4px;overflow:hidden;}
+.funnel-bar{height:100%;background:linear-gradient(90deg,var(--blueprint),var(--orange));}
+.funnel-pct{width:44px;text-align:right;font-family:var(--font-mono);color:var(--steel);flex-shrink:0;}
+
+/* Table */
+.table-wrap{background:var(--white);border:1px solid var(--line);border-radius:10px;overflow:auto;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1100px;}
+th{text-align:left;padding:10px 12px;background:var(--paper);color:var(--steel);font-weight:700;text-transform:uppercase;font-size:10.5px;letter-spacing:.4px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;}
+td{padding:9px 12px;border-bottom:1px solid var(--paper-dim);white-space:nowrap;}
+tr.lead-row:hover{background:#FBFAF8;cursor:pointer;}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.2px;font-family:var(--font-mono);}
+.pri-LOW{background:#EAF1F0;color:#3E7268;}
+.pri-MEDIUM{background:#FFF3D9;color:var(--amber);}
+.pri-HIGH{background:#FFE3D1;color:#C24A00;}
+.pri-URGENT{background:#FCE0E0;color:var(--red);}
+.qual-HOT{background:#FCE0E0;color:var(--red);}
+.qual-STRONG{background:#FFE3D1;color:#C24A00;}
+.qual-MEDIUM{background:#FFF3D9;color:var(--amber);}
+.qual-LOW{background:#EAECEC;color:#6B7776;}
+.status-chip{background:var(--paper-dim);color:var(--navy);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;}
+
+/* Filter bar */
+.filter-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center;}
+.filter-bar select,.filter-bar input{padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--white);}
+
+/* Kanban */
+#kanban-board{display:flex;gap:12px;overflow-x:auto;padding-bottom:20px;align-items:flex-start;}
+.kcol{background:#EDF1F0;border-radius:10px;width:250px;flex-shrink:0;padding:10px;min-height:200px;}
+.kcol-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px;font-family:var(--font-display);font-weight:700;text-transform:uppercase;font-size:13px;letter-spacing:.3px;color:var(--navy-deep);}
+.kcol-count{background:var(--navy-deep);color:#fff;font-family:var(--font-mono);font-size:10.5px;padding:1px 7px;border-radius:10px;}
+.kcard{background:var(--white);border-radius:8px;padding:10px 11px;margin-bottom:8px;border:1px solid var(--line);border-left:3px solid var(--steel);cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+.kcard:active{cursor:grabbing;}
+.kcard.dragging{opacity:.4;}
+.kcard .kname{font-weight:700;font-size:13px;color:var(--ink);}
+.kcard .kbiz{font-size:11.5px;color:var(--steel);margin:1px 0 6px;}
+.kcard .kmeta{display:flex;gap:5px;flex-wrap:wrap;}
+.kcard .kmeta span{font-family:var(--font-mono);font-size:10px;background:var(--paper);padding:2px 6px;border-radius:4px;color:var(--navy);}
+.kcol.dragover{outline:2px dashed var(--orange);outline-offset:-4px;}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(11,42,61,0.5);display:flex;align-items:flex-start;justify-content:center;z-index:100;overflow-y:auto;padding:34px 16px;}
+.modal{background:var(--white);border-radius:12px;width:100%;max-width:820px;max-height:calc(100vh - 68px);display:flex;flex-direction:column;}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px;border-bottom:1px solid var(--line);}
+.modal-body{padding:18px 22px;overflow-y:auto;}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;}
+.close-x{background:none;border:none;font-size:20px;color:var(--steel);}
+
+/* form grid */
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.form-field{display:flex;flex-direction:column;gap:4px;}
+.form-field label{font-size:10.5px;font-weight:700;color:var(--steel);text-transform:uppercase;letter-spacing:.3px;}
+.form-field input,.form-field select,.form-field textarea{padding:7px 9px;border:1px solid var(--line);border-radius:6px;width:100%;}
+.form-field textarea{resize:vertical;min-height:50px;}
+.fs-full{grid-column:1/-1;}
+
+/* Tabs */
+.tabbar{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px;}
+.tab-btn{padding:9px 14px;font-weight:600;font-size:12.5px;color:var(--steel);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;}
+.tab-btn.active{color:var(--navy-deep);border-bottom:2px solid var(--orange);}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+/* activity */
+.activity-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--paper-dim);}
+.activity-item .adot{width:8px;height:8px;border-radius:50%;background:var(--blueprint);margin-top:5px;flex-shrink:0;}
+.activity-item .adate{font-family:var(--font-mono);font-size:10.5px;color:var(--steel);}
+.activity-item .atext{font-size:12.5px;color:var(--ink);}
+
+/* misc */
+.empty-state{text-align:center;padding:50px 20px;color:var(--steel);}
+.empty-state h3{font-family:var(--font-display);font-size:18px;color:var(--navy-deep);text-transform:uppercase;margin-bottom:6px;}
+.tag-pill{background:var(--navy-deep);color:#fff;font-size:10.5px;padding:2px 8px;border-radius:12px;font-weight:600;margin-right:3px;display:inline-block;margin-bottom:3px;}
+.tag-pill.rm{cursor:pointer;}
+.tag-pill.rm:after{content:' ×';}
+#quick-add-fab{position:fixed;bottom:26px;right:26px;background:var(--orange);color:#fff;width:56px;height:56px;border-radius:50%;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(255,106,26,0.4);z-index:50;border:none;}
+.followup-group{margin-bottom:22px;}
+.followup-group h3{font-family:var(--font-display);text-transform:uppercase;font-size:15px;color:var(--navy-deep);margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+.followup-group h3 .cnt{font-family:var(--font-mono);background:var(--paper-dim);padding:1px 8px;border-radius:10px;font-size:11px;}
+.fu-card{display:flex;justify-content:space-between;align-items:center;background:var(--white);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:6px;}
+.fu-card.overdue{border-left:3px solid var(--red);}
+.fu-card.today{border-left:3px solid var(--orange);}
+.fu-card.upcoming{border-left:3px solid var(--green);}
+.settings-list{list-style:none;}
+.settings-list li{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid var(--paper-dim);}
+.chk-row{display:flex;align-items:center;gap:14px;padding:8px 0;flex-wrap:wrap;}
+input[type=checkbox]{width:15px;height:15px;}
+.bulk-bar{position:sticky;top:0;background:var(--navy-deep);color:#fff;padding:9px 16px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:12.5px;}
+.bulk-bar select,.bulk-bar button{margin-left:6px;}
+.mono{font-family:var(--font-mono);}
+.dim{color:var(--steel);}
+.small{font-size:11.5px;}
+.gen-loading{display:flex;align-items:center;gap:8px;color:var(--steel);padding:14px 0;font-size:12.5px;}
+.spinner{width:14px;height:14px;border:2px solid var(--paper-dim);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.chat-msg{padding:9px 12px;border-radius:9px;margin-bottom:8px;font-size:12.5px;line-height:1.5;max-width:85%;}
+.chat-msg.user{background:var(--navy-deep);color:#fff;margin-left:auto;}
+.chat-msg.ai{background:var(--paper-dim);color:var(--ink);}
+@media(max-width:900px){
+  #sidebar{position:fixed;left:-220px;transition:.2s;z-index:200;}
+  #sidebar.open{left:0;}
+  .form-grid{grid-template-columns:1fr 1fr;}
+  table{min-width:900px;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .grid-2,.grid-3{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="stamp">Blue Collar<br>Podcast</div>
+      <div class="sub">Lead &amp; Guest CRM</div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot" id="sync-status">● synced</div>
+  </aside>
+  <div id="main">
+    <div id="topbar">
+      <h1 id="page-title">Dashboard</h1>
+      <div class="topbar-right">
+        <div class="search-box"><input id="global-search" placeholder="Search leads, business, email..."></div>
+        <button class="btn btn-outline" id="export-btn">Export CSV</button>
+      </div>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+<button id="quick-add-fab" title="Quick add lead">+</button>
+
+<script>
+/* ============ FIREBASE (real shared persistence) ============ */
+const firebaseConfig = {
+  apiKey: "AIzaSyB4YmoPU2_prrO_pLT0YbMPZ_9uX8Ae_KA",
+  authDomain: "blue-collar-podcast.firebaseapp.com",
+  databaseURL: "https://blue-collar-podcast-default-rtdb.firebaseio.com",
+  projectId: "blue-collar-podcast",
+  storageBucket: "blue-collar-podcast.firebasestorage.app",
+  messagingSenderId: "528183919653",
+  appId: "1:528183919653:web:0a460544bf8cf53770ebcc"
+};
+firebase.initializeApp(firebaseConfig);
+const fbDb = firebase.database();
+// Drop-in replacement for the Claude-artifact window.storage API, backed by Firebase Realtime Database.
+window.storage = {
+  async get(key, shared){
+    const snap = await fbDb.ref('crm/' + key).once('value');
+    const val = snap.val();
+    if(val === null || val === undefined) throw new Error('Key not found: ' + key);
+    return { key, value: val, shared: !!shared };
+  },
+  async set(key, value, shared){
+    await fbDb.ref('crm/' + key).set(value);
+    return { key, value, shared: !!shared };
+  },
+  async delete(key, shared){
+    await fbDb.ref('crm/' + key).remove();
+    return { key, deleted: true, shared: !!shared };
+  },
+  async list(prefix, shared){
+    const snap = await fbDb.ref('crm').once('value');
+    const val = snap.val() || {};
+    const keys = Object.keys(val).filter(k => !prefix || k.startsWith(prefix));
+    return { keys, prefix, shared: !!shared };
+  }
+};
+
+/* ============ CONSTANTS ============ */
+const PIPELINE_MAIN = ["New Lead","Researched","Contacted","Follow-Up Needed","Responded","Interested","Qualified","Booking Requested","Booked","Podcast Completed"];
+const PIPELINE_SIDE = ["Not Interested","Disqualified","No Response","Nurture / Follow Later"];
+const ALL_STATUSES = [...PIPELINE_MAIN, ...PIPELINE_SIDE];
+
+const DEFAULT_TRADES = {
+  "Home Services":["Pest Control","HVAC","Plumbing","Electrical","Roofing","General Contracting","Remodeling","Restoration","Flooring","Painting","Landscaping","Tree Service","Pool Service","Garage Doors","Windows & Doors","Fencing","Concrete","Foundation","Excavation","Demolition","Insulation","Siding","Gutters","Pressure Washing","Cleaning","Junk Removal","Moving","Locksmith","Appliance Repair","Handyman","Home Security","Solar","Generators"],
+  "Automotive":["Auto Repair","Collision Repair","Towing","Tire Shops","Auto Glass","Mobile Mechanics","Car Detailing","Fleet Services","Diesel Repair"],
+  "Commercial / Industrial":["Commercial HVAC","Industrial Electrical","Industrial Plumbing","Commercial Roofing","Welding","Fabrication","Machine Shops","Manufacturing","Industrial Maintenance","Equipment Rental","Crane Services","Heavy Equipment","Commercial Cleaning","Facility Maintenance","Fire Protection","Security Services"]
+};
+
+const DEFAULT_TAGS = ["$5M+","Founder","CEO","Multi-Location","Family Business","High Growth","Great Story","Referral","Hot Lead","Follow Up","Podcast Prospect"];
+
+const DEFAULT_SETTINGS = {
+  qual: { rev1_3:10, rev3_5:20, rev5_10:30, rev10plus:40, owner:20, blueCollar:15, story:10, social:5, team:5, podcastFit:5 },
+  icp: { minRevenue: 3, executiveRoles: "Founder, CEO, Owner, Co-Founder, President, Managing Partner" }
+};
+const LOGO_BIG_HITTERS = "data:image/jpeg;base64,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";
+const LOGO_BUILDERS_BIBLE = "data:image/jpeg;base64,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";
+const DEFAULT_PODCAST_CATEGORIES = [
+  { id:"big-hitters", name:"Big Hitters Podcast Guests", description:"Flagship guest lineup — the biggest names in blue-collar business.", logoUrl:LOGO_BIG_HITTERS, brandColor:"#FF6A1A", active:true, createdAt:todayStrSafe(), updatedAt:todayStrSafe() },
+  { id:"builders-bible", name:"Builder's Bible Podcast", description:"Deep-dive interviews for builders, contractors, and trade owners.", logoUrl:LOGO_BUILDERS_BIBLE, brandColor:"#F0C419", active:true, createdAt:todayStrSafe(), updatedAt:todayStrSafe() }
+];
+function todayStrSafe(){ try{ return new Date().toISOString().slice(0,10);}catch(e){ return ""; } }
+function icpExecRoleList(){ return (state.settings.icp.executiveRoles||"").split(',').map(s=>s.trim().toLowerCase()).filter(Boolean); }
+// Strict 3-factor ICP: $3M+ revenue AND blue-collar trade AND CEO/Founder/Owner-type title.
+// Returns one of: 'QUALIFIED' | 'POTENTIAL' | 'NOT_ICP'
+function icpStatus(l){
+  const revText = (l.estimatedRevenue||"").trim();
+  const revKnown = !!revText;
+  const revNum = parseFloat(revText.replace(/[^0-9.]/g,''))||0;
+  const revMet = revKnown && revNum >= (state.settings.icp.minRevenue||3);
+
+  const tradeKnown = !!(l.trade && l.trade.trim());
+  // Any trade present in our (admin-editable) blue-collar taxonomy counts as blue-collar.
+  const tradeMet = tradeKnown;
+
+  const titleKnown = !!(l.jobTitle && l.jobTitle.trim());
+  const roles = icpExecRoleList();
+  const titleMet = titleKnown && roles.some(r=>l.jobTitle.toLowerCase().includes(r));
+
+  const anyDefinitivelyFailed = (revKnown && !revMet) || (titleKnown && !titleMet);
+  const anyUnknown = !revKnown || !tradeKnown || !titleKnown;
+
+  if(anyDefinitivelyFailed) return 'NOT_ICP';
+  if(anyUnknown) return 'POTENTIAL';
+  return 'QUALIFIED';
+}
+function icpBadgeHtml(status){
+  const map = { QUALIFIED:['🟢 ICP QUALIFIED','#DFF3E9','#1F8A5F'], POTENTIAL:['🟡 ICP POTENTIAL','#FFF3D9','#B9800A'], NOT_ICP:['🔴 NOT ICP','#FCE0E0','#C23B3B'] };
+  const [txt,bg,fg] = map[status]||map.NOT_ICP;
+  return `<span class="badge" style="background:${bg};color:${fg}">${txt}</span>`;
+}
+function podcastCat(id){ return (state.podcastCategories||[]).find(p=>p.id===id); }
+function podcastCatName(id){ const c=podcastCat(id); return c? c.name : "Unassigned"; }
+
+const SOURCES = ["Instagram","Facebook","LinkedIn","Google","Website","Referral","Podcast Referral","Manual Entry","AI Lead Generator","Import","Other"];
+const PLATFORMS = ["Instagram","Facebook","Email","Phone","LinkedIn","SMS","Other"];
+
+/* ============ STATE ============ */
+let state = null;
+let saveTimer = null;
+let currentView = "dashboard";
+let currentLeadId = null;
+let dashFilter = null;
+let selectedIds = new Set();
+let draggedId = null;
+
+function uid(prefix){ return prefix + "_" + Math.random().toString(36).slice(2,9); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(d){ if(!d) return "—"; const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function esc(s){ return (s??"").toString().replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function seedLeads(){
+  const rows = [
+    ["Mike","Donovan","Donovan Pest Solutions","Pest Control","Home Services","Austin","TX","$4.2M","Owner","Interested","HIGH","Instagram",72],
+    ["Carla","Reyes","Reyes HVAC Group","HVAC","Home Services","Tampa","FL","$6.8M","Founder","Qualified","URGENT","Referral",88],
+    ["Big Tom","Whitfield","Whitfield Roofing Co","Roofing","Home Services","Dallas","TX","$3.1M","CEO","Contacted","MEDIUM","Facebook",55],
+    ["Dana","Kowalski","Kowalski Plumbing & Sons","Plumbing","Home Services","Cleveland","OH","$2.4M","Owner","New Lead","LOW","Manual Entry",30],
+    ["Reggie","Okafor","Okafor Electrical","Electrical","Home Services","Houston","TX","$5.5M","Founder","Booked","URGENT","LinkedIn",91],
+    ["Steph","Marchetti","Marchetti Concrete","Concrete","Home Services","Phoenix","AZ","$1.8M","Owner","Follow-Up Needed","MEDIUM","Instagram",42],
+    ["Wayne","Buckley","Buckley Restoration","Restoration","Home Services","Charlotte","NC","$9.4M","President","Responded","HIGH","Referral",76],
+    ["Priya","Nair","Solar Summit Co","Solar","Home Services","Las Vegas","NV","$3.9M","CEO","Researched","MEDIUM","Website",58],
+    ["Gus","Papadakis","Papadakis General Contracting","General Contracting","Home Services","Denver","CO","$12M","Owner","Podcast Completed","HIGH","Podcast Referral",95],
+    ["Lorena","Vasquez","Vasquez Landscaping","Landscaping","Home Services","San Antonio","TX","$1.1M","Founder","No Response","LOW","Facebook",22],
+    ["Hank","Osei","Osei Garage Doors","Garage Doors","Home Services","Columbus","OH","$2.9M","Owner","Booking Requested","HIGH","Instagram",68],
+    ["Trina","Falk","Falk Fleet Services","Fleet Services","Automotive","Kansas City","MO","$7.2M","CEO","Interested","HIGH","Referral",81],
+    ["Deshawn","Rutter","Rutter Welding & Fab","Welding","Commercial / Industrial","Pittsburgh","PA","$4.6M","Owner","Not Interested","LOW","Manual Entry",48],
+    ["Ivy","Chastain","Chastain Cleaning Co","Commercial Cleaning","Commercial / Industrial","Nashville","TN","$1.6M","Founder","Disqualified","LOW","Import",18],
+    ["Ozzy","Belmonte","Belmonte Towing","Towing","Automotive","Miami","FL","$2.2M","Owner","Nurture / Follow Later","MEDIUM","Google",39],
+  ];
+  return rows.map((r,i)=>{
+    const [fn,ln,biz,trade,cat,city,st,rev,title,status,pri,src,score]=r;
+    const days = Math.floor(Math.random()*30);
+    const dateAdded = new Date(Date.now()-days*86400000).toISOString().slice(0,10);
+    const nextFU = ["Follow-Up Needed","Contacted","Researched"].includes(status) ? new Date(Date.now()+(Math.floor(Math.random()*10)-4)*86400000).toISOString().slice(0,10) : "";
+    const podcastCategoryId = i%3===0 ? "big-hitters" : (i%3===1 ? "builders-bible" : "");
+    return {
+      id: uid("lead"), firstName:fn,lastName:ln,preferredName:"",jobTitle:title,businessName:biz,legalName:"Unknown / Not Verified",
+      trade, tradeCategory:cat, subTrade:"", city, state:st, country:"USA", yearsInBusiness:Math.floor(Math.random()*20)+2,
+      employees:Math.floor(Math.random()*80)+5, estimatedRevenue:rev, revenueConfidence:"Medium Confidence", revenueSource:"Research", verifiedRevenue:"",
+      website:"", email:`${fn.toLowerCase().replace(/\s/g,'')}@${biz.toLowerCase().replace(/[^a-z]/g,'')}.com`, phone:"(555) 010-"+String(1000+Math.floor(Math.random()*8999)).slice(0,4),
+      instagram:"", facebook:"", linkedin:"", podcastCategoryId,
+      source:src, platform:src==="Referral"?"Phone":src, dateAdded, dateFirstContacted: status!=="New Lead"?dateAdded:"", lastContactDate: status!=="New Lead"?dateAdded:"",
+      nextFollowUpDate: nextFU, numFollowUps: Math.floor(Math.random()*3), lastContactMethod: src,
+      status, priority:pri, qualificationScore:score, revenueQualified:score>50, businessOwner:true, blueCollarTrade:true, podcastFit:score>60,
+      story:"", disqualificationReason:"", researchStatus:"Research Complete",
+      podcast:{interestedDate:"",qualifiedDate:"",bookingDate:"",podcastDate:"",completedDate:status==="Podcast Completed"?dateAdded:"",episodeNumber:status==="Podcast Completed"?String(Math.floor(Math.random()*40)+1):"",recordingLink:""},
+      assignedTo:"Andrew", tags:[], notes:[], activity:[{date:dateAdded,text:"Lead created (seed data).",user:"System"}],
+      isDemo:true
+    };
+  });
+}
+
+function defaultState(){
+  return {
+    leads: seedLeads(),
+    trades: JSON.parse(JSON.stringify(DEFAULT_TRADES)),
+    tags: [...DEFAULT_TAGS],
+    pipeline: [...PIPELINE_MAIN, ...PIPELINE_SIDE],
+    settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
+    podcastCategories: JSON.parse(JSON.stringify(DEFAULT_PODCAST_CATEGORIES)),
+    generatedQueue: [],
+    currentUser: "Andrew"
+  };
+}
+
+/* ============ STORAGE ============ */
+async function loadState(){
+  try{
+    const res = await window.storage.get('crm_data', true);
+    if(res && res.value){ state = JSON.parse(res.value); }
+    else { state = defaultState(); await persist(true); }
+  }catch(e){ state = defaultState(); await persist(true); }
+  // backfill missing fields for safety
+  if(!state.generatedQueue) state.generatedQueue = [];
+  if(!state.settings) state.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  if(!state.settings.icp) state.settings.icp = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.icp));
+  if(state.settings.icp.titles && !state.settings.icp.executiveRoles){ state.settings.icp.executiveRoles = state.settings.icp.titles; }
+  if(!state.podcastCategories) state.podcastCategories = JSON.parse(JSON.stringify(DEFAULT_PODCAST_CATEGORIES));
+  const bh = state.podcastCategories.find(p=>p.id==='big-hitters'); if(bh && !bh.logoUrl) bh.logoUrl = LOGO_BIG_HITTERS;
+  const bb = state.podcastCategories.find(p=>p.id==='builders-bible'); if(bb && !bb.logoUrl) bb.logoUrl = LOGO_BUILDERS_BIBLE;
+  state.leads.forEach(l=>{ if(l.podcastCategoryId===undefined) l.podcastCategoryId=""; });
+}
+async function persist(immediate){
+  document.getElementById('sync-status').textContent = '● saving…';
+  clearTimeout(saveTimer);
+  const doSave = async ()=>{
+    try{
+      await window.storage.set('crm_data', JSON.stringify(state), true);
+      document.getElementById('sync-status').textContent = '● synced (shared)';
+    }catch(e){
+      document.getElementById('sync-status').textContent = '● save failed';
+    }
+  };
+  if(immediate){ await doSave(); } else { saveTimer = setTimeout(doSave, 500); }
+}
+
+/* ============ NAV ============ */
+const NAV = [
+  {group:"", items:[["dashboard","Dashboard"]]},
+  {group:"Leads", items:[["leads-all","All Leads"],["leads-icp","ICP Leads"],["leads-followups","Follow-Ups"],["leads-generated","Generated Leads"]]},
+  {group:"Pipeline", items:[["kanban","Kanban Board"]]},
+  {group:"Lead Generator", items:[["generator","Generate ICP Leads"]]},
+  {group:"Podcast", items:[["podcast","Podcast Guests"],["podcast-categories","Podcast Categories"]]},
+  {group:"", items:[["assistant","AI Assistant"]]},
+  {group:"Admin", items:[["settings","Settings"]]},
+];
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = NAV.map(g=>`
+    <div class="nav-group">
+      ${g.group? `<div class="nav-label">${g.group}</div>`:''}
+      ${g.items.map(([id,label])=>`<div class="nav-item ${currentView===id?'active':''}" data-view="${id}"><span class="dot"></span>${label}</div>`).join('')}
+    </div>`).join('');
+  nav.querySelectorAll('.nav-item').forEach(el=>el.addEventListener('click',()=>{ dashFilter=null; goTo(el.dataset.view); }));
+}
+function goTo(view, param){
+  currentView = view;
+  routeParam = param!==undefined ? param : null;
+  renderNav();
+  const titles = {dashboard:"Dashboard","leads-all":"All Leads","leads-icp":"ICP Leads — $3M+ · Blue-Collar · CEO/Founder/Owner","leads-followups":"Follow-Ups","leads-generated":"Generated Leads (Review Queue)",kanban:"Pipeline — Kanban",generator:"AI Lead Generator",podcast:"Podcast Guests","podcast-categories":"Podcast Categories",assistant:"AI Assistant",settings:"Settings & Admin"};
+  document.getElementById('page-title').textContent = titles[view]||"";
+  renderView();
+  document.getElementById('content').scrollTop=0;
+  window.scrollTo(0,0);
+}
+let routeParam = null;
+
+/* ============ HELPERS: computed ============ */
+function leadName(l){ return `${l.firstName||''} ${l.lastName||''}`.trim() || '(no name)'; }
+function qualBand(score){ if(score>=80) return "HOT"; if(score>=60) return "STRONG"; if(score>=40) return "MEDIUM"; return "LOW"; }
+function computeScore(l){
+  const q = state.settings.qual;
+  let s = 0;
+  const rev = parseFloat((l.estimatedRevenue||"0").replace(/[^0-9.]/g,''))||0;
+  if(rev>=10) s+=q.rev10plus; else if(rev>=5) s+=q.rev5_10; else if(rev>=3) s+=q.rev3_5; else if(rev>=1) s+=q.rev1_3;
+  if(l.businessOwner) s+=q.owner;
+  if(l.blueCollarTrade) s+=q.blueCollar;
+  if(l.story) s+=q.story;
+  if(l.instagram||l.facebook||l.linkedin) s+=q.social;
+  if(l.employees>=20) s+=q.team;
+  if(l.podcastFit) s+=q.podcastFit;
+  return Math.min(100,s);
+}
+function logActivity(l, text){ l.activity = l.activity||[]; l.activity.unshift({date:todayStr(), text, user:state.currentUser||"User"}); }
+
+function filteredLeads(extra){
+  let arr = state.leads.slice();
+  const q = (document.getElementById('global-search')?.value||"").toLowerCase().trim();
+  if(q){
+    arr = arr.filter(l => [leadName(l),l.businessName,l.email,l.phone,l.trade,l.city,l.state].join(' ').toLowerCase().includes(q));
+  }
+  if(extra) arr = arr.filter(extra);
+  return arr;
+}
+
+/* ============ RENDER ROUTER ============ */
+function renderView(){
+  const c = document.getElementById('content');
+  if(currentView==='dashboard') c.innerHTML = viewDashboard();
+  else if(currentView==='leads-all') c.innerHTML = viewLeadsAll();
+  else if(currentView==='leads-icp') c.innerHTML = viewICPLeads();
+  else if(currentView==='leads-followups') c.innerHTML = viewFollowups();
+  else if(currentView==='leads-generated') c.innerHTML = viewGenerated();
+  else if(currentView==='kanban') c.innerHTML = viewKanban();
+  else if(currentView==='generator') c.innerHTML = viewGenerator();
+  else if(currentView==='podcast') c.innerHTML = viewPodcast();
+  else if(currentView==='podcast-categories') c.innerHTML = viewPodcastCategories();
+  else if(currentView==='podcast-category-detail') c.innerHTML = viewPodcastCategoryDetail(routeParam);
+  else if(currentView==='assistant') c.innerHTML = viewAssistant();
+  else if(currentView==='settings') c.innerHTML = viewSettings();
+  afterRender();
+}
+
+/* ============ DASHBOARD ============ */
+function viewDashboard(){
+  const L = state.leads;
+  const count = st => L.filter(l=>l.status===st).length;
+  const icpQualified = L.filter(l=>icpStatus(l)==='QUALIFIED').length;
+  const icpPotential = L.filter(l=>icpStatus(l)==='POTENTIAL').length;
+  const kpis = [
+    ["Total Leads", L.length, null],
+    ["ICP Qualified", icpQualified, "__icp_q"],
+    ["ICP Potential", icpPotential, "__icp_p"],
+    ["New Leads", count("New Lead"), "New Lead"],
+    ["Contacted", count("Contacted"), "Contacted"],
+    ["Follow-Ups Due", L.filter(l=>l.nextFollowUpDate && l.nextFollowUpDate<=todayStr()).length, "__fu"],
+    ["Interested", count("Interested"), "Interested"],
+    ["Qualified", count("Qualified"), "Qualified"],
+    ["Booked", count("Booked"), "Booked"],
+    ["Podcasts Completed", count("Podcast Completed"), "Podcast Completed"],
+    ["No Response", count("No Response"), "No Response"],
+    ["Disqualified", count("Disqualified"), "Disqualified"],
+  ];
+  const stageOf = s => PIPELINE_MAIN.indexOf(s);
+  const reach = n => L.filter(l=>stageOf(l.status)>=n || ["Booking Requested","Booked","Podcast Completed"].includes(l.status) && n<=7).length;
+  const totalN = L.length||1;
+  const contactedN = L.filter(l=>stageOf(l.status)>=2).length;
+  const respondedN = L.filter(l=>stageOf(l.status)>=4).length;
+  const interestedN = L.filter(l=>stageOf(l.status)>=5).length;
+  const qualifiedN = L.filter(l=>stageOf(l.status)>=6).length;
+  const bookedN = L.filter(l=>stageOf(l.status)>=8).length;
+  const completedN = L.filter(l=>l.status==="Podcast Completed").length;
+  const pct = (a,b)=> b>0? Math.round(a/b*100):0;
+  const funnel = [
+    ["Lead → Contacted", pct(contactedN,totalN)],
+    ["Contacted → Response", pct(respondedN,contactedN)],
+    ["Response → Interested", pct(interestedN,respondedN)],
+    ["Interested → Qualified", pct(qualifiedN,interestedN)],
+    ["Qualified → Booked", pct(bookedN,qualifiedN)],
+    ["Booked → Completed", pct(completedN,bookedN)],
+    ["Overall Lead → Podcast", pct(completedN,totalN)],
+  ];
+  const bySource = {}; L.forEach(l=>{ bySource[l.source]=(bySource[l.source]||0)+1; });
+  const byTrade = {}; L.forEach(l=>{ byTrade[l.trade]=(byTrade[l.trade]||0)+1; });
+  window.__dashData = {bySource, byTrade, qual:{
+    HOT:L.filter(l=>qualBand(l.qualificationScore)==='HOT').length,
+    STRONG:L.filter(l=>qualBand(l.qualificationScore)==='STRONG').length,
+    MEDIUM:L.filter(l=>qualBand(l.qualificationScore)==='MEDIUM').length,
+    LOW:L.filter(l=>qualBand(l.qualificationScore)==='LOW').length
+  }};
+
+  return `
+  <div class="kpi-grid">
+    ${kpis.map(([lbl,num,fk])=>`<div class="kpi" data-fk="${fk||''}" onclick="kpiClick('${fk||''}')"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join('')}
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-title">Conversion Funnel</div>
+      ${funnel.map(([l,p])=>`<div class="funnel-row"><div class="flabel">${l}</div><div class="funnel-bar-bg"><div class="funnel-bar" style="width:${p}%"></div></div><div class="funnel-pct">${p}%</div></div>`).join('')}
+    </div>
+    <div class="card">
+      <div class="section-title">Outreach by Source</div>
+      <canvas id="chartSource" height="200"></canvas>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-title">Leads by Trade</div>
+      <canvas id="chartTrade" height="210"></canvas>
+    </div>
+    <div class="card">
+      <div class="section-title">Qualification Mix</div>
+      <canvas id="chartQual" height="210"></canvas>
+    </div>
+  </div>
+  `;
+}
+function kpiClick(fk){
+  if(!fk) { goTo('leads-all'); return; }
+  if(fk==='__fu'){ goTo('leads-followups'); return; }
+  if(fk==='__icp_q'){ goTo('leads-icp'); return; }
+  if(fk==='__icp_p'){ dashFilter='__icp_potential'; goTo('leads-all'); return; }
+  dashFilter = fk; goTo('leads-all');
+}
+function drawDashCharts(){
+  if(!window.__dashData) return;
+  const d = window.__dashData;
+  const palette = ['#1B4F72','#FF6A1A','#5C7A89','#1F8A5F','#B9800A','#C23B3B','#0B2A3D'];
+  const mk = (id,labels,data,type)=>{
+    const el = document.getElementById(id); if(!el) return;
+    new Chart(el, {type:type||'doughnut', data:{labels, datasets:[{data, backgroundColor:palette, borderWidth:type==='bar'?0:2, borderColor:'#fff'}]},
+      options:{plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10.5}}}}, ...(type==='bar'?{indexAxis:'y',scales:{x:{beginAtZero:true}}}:{})}});
+  };
+  mk('chartSource', Object.keys(d.bySource), Object.values(d.bySource));
+  mk('chartTrade', Object.keys(d.byTrade), Object.values(d.byTrade), 'bar');
+  mk('chartQual', Object.keys(d.qual), Object.values(d.qual));
+}
+
+/* ============ ICP LEADS MASTER VIEW ============ */
+function viewICPLeads(){
+  const leads = filteredLeads(l=>icpStatus(l)==='QUALIFIED');
+  return `
+  <div class="card" style="margin-bottom:14px;background:#F2F8F5;border-color:#BFE3D2">
+    <b style="color:var(--green)">🟢 Strict ICP:</b> <span class="small">$${state.settings.icp.minRevenue}M+ revenue <b>AND</b> blue-collar trade <b>AND</b> ${esc(state.settings.icp.executiveRoles)}. ${leads.length} lead(s) currently meet all three.</span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Name</th><th>Business</th><th>Trade</th><th>Revenue</th><th>Legal Name</th><th>Email</th><th>Phone</th><th>Instagram</th><th>Facebook</th><th>Podcast</th><th>Qual.</th><th>Status</th><th>Follow-Up</th></tr></thead>
+    <tbody>
+    ${leads.map(l=>{ const pc=podcastCat(l.podcastCategoryId); return `<tr class="lead-row" onclick="openLead('${l.id}')">
+      <td><b>${esc(leadName(l))}</b><div class="dim small">${esc(l.jobTitle)}</div></td>
+      <td>${esc(l.businessName)}</td>
+      <td>${esc(l.trade)}</td>
+      <td class="mono">${esc(l.estimatedRevenue)}</td>
+      <td class="small">${esc(l.legalName)}</td>
+      <td class="small">${esc(l.email)||'—'}</td>
+      <td class="small">${esc(l.phone)||'—'}</td>
+      <td class="small">${l.instagram?`<a href="${esc(l.instagram)}" target="_blank" onclick="event.stopPropagation()">link</a>`:'—'}</td>
+      <td class="small">${l.facebook?`<a href="${esc(l.facebook)}" target="_blank" onclick="event.stopPropagation()">link</a>`:'—'}</td>
+      <td class="small">${pc?esc(pc.name):'Unassigned'}</td>
+      <td><span class="badge qual-${qualBand(l.qualificationScore)}">${l.qualificationScore}</span></td>
+      <td><span class="status-chip">${esc(l.status)}</span></td>
+      <td class="mono">${l.nextFollowUpDate?fmtDate(l.nextFollowUpDate):'—'}</td>
+    </tr>`; }).join('') || `<tr><td colspan="13"><div class="empty-state"><h3>No ICP-qualified leads yet</h3><p>Leads need a known $${state.settings.icp.minRevenue}M+ revenue, a trade, and a CEO/Founder/Owner-type title to land here.</p></div></td></tr>`}
+    </tbody>
+  </table>
+  </div>`;
+}
+
+/* ============ ALL LEADS TABLE ============ */
+function viewLeadsAll(){
+  const tradeCats = Object.keys(state.trades);
+  let extra = null;
+  if(dashFilter){
+    if(dashFilter==='__icp_potential') extra = l=>icpStatus(l)==='POTENTIAL';
+    else if(PIPELINE_MAIN.includes(dashFilter) || PIPELINE_SIDE.includes(dashFilter)) extra = l=>l.status===dashFilter;
+  }
+  const leads = filteredLeads(extra);
+  return `
+  <div class="filter-bar">
+    <select id="f-status"><option value="">All Statuses</option>${ALL_STATUSES.map(s=>`<option ${dashFilter===s?'selected':''}>${s}</option>`).join('')}</select>
+    <select id="f-trade"><option value="">All Trades</option>${Object.values(state.trades).flat().map(t=>`<option>${t}</option>`).join('')}</select>
+    <select id="f-priority"><option value="">All Priorities</option>${["LOW","MEDIUM","HIGH","URGENT"].map(p=>`<option>${p}</option>`).join('')}</select>
+    <select id="f-source"><option value="">All Sources</option>${SOURCES.map(s=>`<option>${s}</option>`).join('')}</select>
+    <select id="f-qual"><option value="">All Qualification</option>${["HOT","STRONG","MEDIUM","LOW"].map(s=>`<option>${s}</option>`).join('')}</select>
+    <select id="f-icp"><option value="">ICP Status: All</option><option value="QUALIFIED" ${dashFilter==='__icp_qualified'?'selected':''}>ICP Qualified</option><option value="POTENTIAL" ${dashFilter==='__icp_potential'?'selected':''}>ICP Potential</option><option value="NOT_ICP">Not ICP</option></select>
+    <select id="f-podcast"><option value="">Podcast: All</option>${(state.podcastCategories||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}<option value="__unassigned">Unassigned</option></select>
+    <button class="btn btn-outline btn-sm" onclick="applyFilters()">Apply</button>
+    <button class="btn btn-ghost btn-sm" onclick="dashFilter=null;goTo('leads-all')">Clear</button>
+    <span class="dim small" style="margin-left:auto">${leads.length} leads · ICP: $${state.settings.icp.minRevenue}M+ blue-collar · ${esc(state.settings.icp.executiveRoles)}</span>
+  </div>
+  <div id="bulk-bar-holder"></div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th><input type="checkbox" id="chk-all" onchange="toggleAll(this)"></th>
+      <th>Name</th><th>Business</th><th>Trade</th><th>Location</th><th>Revenue</th><th>ICP</th><th>Podcast</th><th>Status</th><th>Priority</th><th>Qual.</th><th>Next Follow-Up</th>
+    </tr></thead>
+    <tbody id="leads-tbody">
+    ${leads.map(l=>rowHtml(l)).join('') || `<tr><td colspan="11"><div class="empty-state">No leads match your filters.</div></td></tr>`}
+    </tbody>
+  </table>
+  </div>`;
+}
+function rowHtml(l){
+  const band = qualBand(l.qualificationScore);
+  const ist = icpStatus(l);
+  const pc = podcastCat(l.podcastCategoryId);
+  return `<tr class="lead-row" data-id="${l.id}">
+    <td onclick="event.stopPropagation()"><input type="checkbox" class="row-chk" data-id="${l.id}" ${selectedIds.has(l.id)?'checked':''} onchange="toggleRow('${l.id}',this)"></td>
+    <td onclick="openLead('${l.id}')"><b>${esc(leadName(l))}</b><div class="dim small">${esc(l.jobTitle||'')}</div></td>
+    <td onclick="openLead('${l.id}')">${esc(l.businessName)}</td>
+    <td onclick="openLead('${l.id}')">${esc(l.trade)}</td>
+    <td onclick="openLead('${l.id}')">${esc(l.city)}, ${esc(l.state)}</td>
+    <td onclick="openLead('${l.id}')" class="mono">${esc(l.estimatedRevenue)}<div class="dim small">${esc(l.revenueConfidence)}</div></td>
+    <td onclick="openLead('${l.id}')">${icpBadgeHtml(ist)}</td>
+    <td onclick="openLead('${l.id}')">${pc? `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:50%;background:${pc.brandColor};display:inline-block"></span>${esc(pc.name)}</span>` : '<span class="dim">Unassigned</span>'}</td>
+    <td onclick="openLead('${l.id}')"><span class="status-chip">${esc(l.status)}</span></td>
+    <td onclick="openLead('${l.id}')"><span class="badge pri-${l.priority}">${l.priority}</span></td>
+    <td onclick="openLead('${l.id}')"><span class="badge qual-${band}">${band} ${l.qualificationScore}</span></td>
+    <td onclick="openLead('${l.id}')" class="mono">${l.nextFollowUpDate?fmtDate(l.nextFollowUpDate):'—'}</td>
+  </tr>`;
+}
+function applyFilters(){
+  const st=document.getElementById('f-status').value, tr=document.getElementById('f-trade').value, pr=document.getElementById('f-priority').value, src=document.getElementById('f-source')?.value||"", ql=document.getElementById('f-qual').value, icp=document.getElementById('f-icp').value, pcat=document.getElementById('f-podcast').value;
+  const tbody = document.getElementById('leads-tbody');
+  const leads = filteredLeads(l => (!st||l.status===st) && (!tr||l.trade===tr) && (!pr||l.priority===pr) && (!src||l.source===src) && (!ql||qualBand(l.qualificationScore)===ql) && (!icp||icpStatus(l)===icp) && (!pcat|| (pcat==='__unassigned'? !l.podcastCategoryId : l.podcastCategoryId===pcat)));
+  tbody.innerHTML = leads.map(l=>rowHtml(l)).join('') || `<tr><td colspan="11"><div class="empty-state">No leads match your filters.</div></td></tr>`;
+}
+function toggleRow(id,el){ el.checked? selectedIds.add(id) : selectedIds.delete(id); renderBulkBar(); }
+function toggleAll(el){
+  document.querySelectorAll('.row-chk').forEach(c=>{ c.checked=el.checked; el.checked?selectedIds.add(c.dataset.id):selectedIds.delete(c.dataset.id); });
+  renderBulkBar();
+}
+function renderBulkBar(){
+  const holder = document.getElementById('bulk-bar-holder'); if(!holder) return;
+  if(selectedIds.size===0){ holder.innerHTML=''; return; }
+  holder.innerHTML = `<div class="bulk-bar">
+    <span>${selectedIds.size} selected</span>
+    <span>
+      <select id="bulk-status"><option value="">Change status…</option>${ALL_STATUSES.map(s=>`<option>${s}</option>`).join('')}</select>
+      <button class="btn btn-sm btn-outline" style="color:#fff;border-color:#3a5a6c" onclick="bulkApplyStatus()">Apply</button>
+      <select id="bulk-tag"><option value="">Add tag…</option>${state.tags.map(t=>`<option>${t}</option>`).join('')}</select>
+      <button class="btn btn-sm btn-outline" style="color:#fff;border-color:#3a5a6c" onclick="bulkApplyTag()">Add</button>
+      <button class="btn btn-sm btn-danger" onclick="bulkDelete()">Delete</button>
+      <button class="btn btn-sm btn-ghost" style="color:#cfe0e8" onclick="selectedIds.clear();renderView();">Clear</button>
+    </span>
+  </div>`;
+}
+function bulkApplyStatus(){
+  const s = document.getElementById('bulk-status').value; if(!s) return;
+  state.leads.forEach(l=>{ if(selectedIds.has(l.id)){ l.status=s; logActivity(l,`Status bulk-changed to ${s}.`);} });
+  persist(); selectedIds.clear(); goTo('leads-all');
+}
+function bulkApplyTag(){
+  const t = document.getElementById('bulk-tag').value; if(!t) return;
+  state.leads.forEach(l=>{ if(selectedIds.has(l.id) && !l.tags.includes(t)) l.tags.push(t); });
+  persist(); selectedIds.clear(); goTo('leads-all');
+}
+function bulkDelete(){
+  if(!confirm(`Delete ${selectedIds.size} lead(s)? This can't be undone.`)) return;
+  state.leads = state.leads.filter(l=>!selectedIds.has(l.id));
+  persist(); selectedIds.clear(); goTo('leads-all');
+}
+
+/* ============ FOLLOW-UPS ============ */
+function viewFollowups(){
+  const today = todayStr();
+  const withFU = state.leads.filter(l=>l.nextFollowUpDate);
+  const overdue = withFU.filter(l=>l.nextFollowUpDate<today);
+  const dueToday = withFU.filter(l=>l.nextFollowUpDate===today);
+  const upcoming = withFU.filter(l=>l.nextFollowUpDate>today);
+  const noDate = state.leads.filter(l=>!l.nextFollowUpDate && !["Podcast Completed","Not Interested","Disqualified"].includes(l.status));
+  const grp = (title,arr,cls)=> `<div class="followup-group"><h3>${title} <span class="cnt">${arr.length}</span></h3>
+    ${arr.length? arr.map(l=>fuCard(l,cls)).join('') : `<div class="dim small" style="padding:6px 0">Nothing here.</div>`}</div>`;
+  return grp("Overdue", overdue, "overdue") + grp("Due Today", dueToday, "today") + grp("Upcoming", upcoming, "upcoming") + grp("No Follow-Up Date Set", noDate, "");
+}
+function fuCard(l,cls){
+  return `<div class="fu-card ${cls}">
+    <div>
+      <b>${esc(leadName(l))}</b> — ${esc(l.businessName)} <span class="dim small">(${esc(l.trade)})</span>
+      <div class="small dim">Last contact: ${l.lastContactDate?fmtDate(l.lastContactDate):'—'} via ${esc(l.lastContactMethod||'—')} · Status: ${esc(l.status)}</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="mono small dim">${l.nextFollowUpDate?fmtDate(l.nextFollowUpDate):'no date'}</span>
+      <button class="btn btn-sm btn-outline" onclick="fuComplete('${l.id}')">Mark Done</button>
+      <button class="btn btn-sm btn-ghost" onclick="openLead('${l.id}')">Open</button>
+    </div>
+  </div>`;
+}
+function fuComplete(id){
+  const l = state.leads.find(x=>x.id===id);
+  const next = prompt("Follow-up completed. Set next follow-up date (YYYY-MM-DD), or leave blank for none:", "");
+  l.lastContactDate = todayStr(); l.numFollowUps=(l.numFollowUps||0)+1; l.nextFollowUpDate = next||"";
+  logActivity(l, "Follow-up completed."+(next?` Next follow-up set for ${next}.`:''));
+  persist(); goTo('leads-followups');
+}
+
+/* ============ GENERATED LEADS QUEUE ============ */
+function viewGenerated(){
+  const q = state.generatedQueue;
+  if(!q.length) return `<div class="empty-state"><h3>No generated leads waiting for review</h3><p>Run the AI Lead Generator to find real, web-sourced candidates.</p><br><button class="btn btn-primary" onclick="goTo('generator')">Go to Lead Generator</button></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Business</th><th>Trade</th><th>Location</th><th>Est. Revenue</th><th>ICP</th><th>Source / Confidence</th><th>Podcast Category</th><th>Notes</th><th>Actions</th></tr></thead>
+  <tbody>${q.map((g,i)=>{
+    const pseudoLead = {estimatedRevenue:g.revenue==='Unknown'?'':g.revenue, trade:g.trade, jobTitle:g.title};
+    return `<tr>
+    <td><b>${esc(g.name||'Unknown')}</b><div class="dim small">${esc(g.title||'')}</div></td>
+    <td>${esc(g.business)}</td>
+    <td>${esc(g.trade)}</td>
+    <td>${esc(g.location)}</td>
+    <td class="mono">${esc(g.revenue||'Unknown')} <span class="dim small">(${esc(g.revenueConfidence||'Unverified')})</span></td>
+    <td>${icpBadgeHtml(icpStatus(pseudoLead))}</td>
+    <td class="small">${esc(g.sourceUrl||'—')}</td>
+    <td><select id="gen-podcast-${i}">${['',...(state.podcastCategories||[]).map(p=>p.id)].map(id=>`<option value="${id}" ${g.podcastCategoryId===id?'selected':''}>${id?podcastCatName(id):'Unassigned'}</option>`).join('')}</select></td>
+    <td class="small" style="white-space:normal;max-width:220px">${esc(g.notes||'')}</td>
+    <td><button class="btn btn-sm btn-primary" onclick="approveGenerated(${i})">Approve</button> <button class="btn btn-sm btn-danger" onclick="rejectGenerated(${i})">Reject</button></td>
+  </tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+function approveGenerated(i){
+  const g = state.generatedQueue[i];
+  const pcSel = document.getElementById('gen-podcast-'+i);
+  const podcastCategoryId = pcSel ? pcSel.value : (g.podcastCategoryId||"");
+  const [fn,...rest] = (g.name||"Unknown Unknown").split(' ');
+  state.leads.push({
+    id: uid('lead'), firstName:fn, lastName:rest.join(' ')||'', preferredName:"", jobTitle:g.title||"", businessName:g.business||"", legalName:"Unknown / Not Verified",
+    trade:g.trade||"", tradeCategory:g.tradeCategory||Object.keys(state.trades)[0], subTrade:"", city:(g.location||"").split(',')[0]?.trim()||"", state:(g.location||"").split(',')[1]?.trim()||"", country:"USA",
+    yearsInBusiness:"", employees:"", estimatedRevenue:g.revenue==='Unknown'?'':(g.revenue||""), revenueConfidence:g.revenueConfidence||"Low Confidence", revenueSource: g.sourceUrl||"Research", verifiedRevenue:"",
+    website:g.website||"", email:"", phone:"", instagram:"", facebook:"", linkedin:"", podcastCategoryId,
+    source:"AI Lead Generator", platform:"", dateAdded:todayStr(), dateFirstContacted:"", lastContactDate:"", nextFollowUpDate:"",
+    numFollowUps:0, lastContactMethod:"", status:"New Lead", priority:"MEDIUM", qualificationScore:0, revenueQualified:false, businessOwner:true, blueCollarTrade:true, podcastFit:false,
+    story:"", disqualificationReason:"", researchStatus:"Needs Verification",
+    podcast:{interestedDate:"",qualifiedDate:"",bookingDate:"",podcastDate:"",completedDate:"",episodeNumber:"",recordingLink:""},
+    assignedTo:state.currentUser, tags:["AI-Sourced"], notes:[{date:todayStr(),text:g.notes||"Sourced via AI Lead Generator web search.",user:state.currentUser}],
+    activity:[{date:todayStr(),text:"Lead approved from AI Lead Generator queue. "+(g.sourceUrl?`Source: ${g.sourceUrl}`:"No source URL captured — verify manually."),user:state.currentUser}]
+  });
+  state.leads[state.leads.length-1].qualificationScore = computeScore(state.leads[state.leads.length-1]);
+  state.generatedQueue.splice(i,1);
+  persist(); goTo('leads-generated');
+}
+function rejectGenerated(i){ state.generatedQueue.splice(i,1); persist(); goTo('leads-generated'); }
+
+/* ============ KANBAN ============ */
+let kanbanPodcastFilter = "";
+function viewKanban(){
+  const cols = [...PIPELINE_MAIN, ...PIPELINE_SIDE];
+  const filterBar = `<div class="filter-bar">
+    <label class="small dim">Podcast:</label>
+    <select id="kanban-podcast-filter" onchange="kanbanPodcastFilter=this.value;goTo('kanban')">
+      <option value="" ${kanbanPodcastFilter===''?'selected':''}>All</option>
+      ${(state.podcastCategories||[]).map(p=>`<option value="${p.id}" ${kanbanPodcastFilter===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
+      <option value="__unassigned" ${kanbanPodcastFilter==='__unassigned'?'selected':''}>Unassigned</option>
+    </select>
+  </div>`;
+  const inFilter = l => !kanbanPodcastFilter || (kanbanPodcastFilter==='__unassigned' ? !l.podcastCategoryId : l.podcastCategoryId===kanbanPodcastFilter);
+  return filterBar + `<div id="kanban-board">${cols.map(col=>{
+    const items = state.leads.filter(l=>l.status===col && inFilter(l));
+    return `<div class="kcol" data-status="${esc(col)}" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="kdrop(event,'${esc(col)}')">
+      <div class="kcol-head">${esc(col)}<span class="kcol-count">${items.length}</span></div>
+      ${items.map(l=>{ const pc=podcastCat(l.podcastCategoryId); return `<div class="kcard" draggable="true" data-id="${l.id}" ondragstart="kdragstart(event,'${l.id}')" ondragend="this.classList.remove('dragging')" onclick="openLead('${l.id}')" style="border-left-color:${pc?pc.brandColor:'var(--steel)'}">
+        <div class="kname">${esc(leadName(l))}</div>
+        <div class="kbiz">${esc(l.businessName)}</div>
+        <div class="kmeta">
+          <span>${esc(l.trade)}</span>
+          <span>${esc(l.estimatedRevenue||'—')}</span>
+          <span class="badge pri-${l.priority}" style="font-family:inherit">${l.priority}</span>
+        </div>
+        <div class="small dim" style="margin-top:5px;display:flex;align-items:center;gap:5px">
+          ${pc? `<span style="width:8px;height:8px;border-radius:50%;background:${pc.brandColor};display:inline-block"></span>${esc(pc.name)}` : 'Unassigned'}
+        </div>
+      </div>`; }).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+function kdragstart(e,id){ draggedId=id; e.target.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
+function kdrop(e,status){
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  const l = state.leads.find(x=>x.id===draggedId); if(!l) return;
+  if(l.status!==status){ const old=l.status; l.status=status; logActivity(l,`Status changed: ${old} → ${status}.`);
+    if(status==="Interested") l.podcast.interestedDate=todayStr();
+    if(status==="Qualified") l.podcast.qualifiedDate=todayStr();
+    if(status==="Booked") l.podcast.bookingDate=l.podcast.bookingDate||todayStr();
+    if(status==="Podcast Completed") l.podcast.completedDate=todayStr();
+    persist(); }
+  goTo('kanban');
+}
+
+/* ============ PODCAST GUESTS ============ */
+function viewPodcast(){
+  const groups = [
+    ["Potential Guests", l=>["Interested","Qualified"].includes(l.status)],
+    ["Booking Requested", l=>l.status==="Booking Requested"],
+    ["Booked / Upcoming", l=>l.status==="Booked"],
+    ["Completed", l=>l.status==="Podcast Completed"],
+  ];
+  return groups.map(([title,f])=>{
+    const items = state.leads.filter(f);
+    return `<div class="followup-group"><h3>${title} <span class="cnt">${items.length}</span></h3>
+      ${items.length? `<div class="table-wrap"><table><thead><tr><th>Guest</th><th>Business</th><th>Trade</th><th>Episode #</th><th>Podcast Date</th><th>Completed</th><th></th></tr></thead>
+      <tbody>${items.map(l=>`<tr class="lead-row"><td onclick="openLead('${l.id}')"><b>${esc(leadName(l))}</b></td><td onclick="openLead('${l.id}')">${esc(l.businessName)}</td><td onclick="openLead('${l.id}')">${esc(l.trade)}</td>
+        <td class="mono">${esc(l.podcast.episodeNumber||'—')}</td><td class="mono">${l.podcast.podcastDate?fmtDate(l.podcast.podcastDate):'—'}</td><td class="mono">${l.podcast.completedDate?fmtDate(l.podcast.completedDate):'—'}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="openLead('${l.id}')">Open</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="dim small" style="padding:6px 0">Nothing here yet.</div>`}
+    </div>`;
+  }).join('');
+}
+
+/* ============ PODCAST CATEGORY DASHBOARDS ============ */
+function viewPodcastCategories(){
+  const cats = state.podcastCategories||[];
+  const unassignedCount = state.leads.filter(l=>!l.podcastCategoryId).length;
+  return `<div class="grid-3">
+    ${cats.map(c=>{
+      const leads = state.leads.filter(l=>l.podcastCategoryId===c.id);
+      return `<div class="card" style="cursor:pointer;border-top:3px solid ${c.brandColor}" onclick="goTo('podcast-category-detail','${c.id}')">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          ${c.logoUrl? `<img src="${c.logoUrl}" style="width:38px;height:38px;object-fit:cover;border-radius:8px">` : `<div style="width:38px;height:38px;border-radius:8px;background:${c.brandColor};display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-display);font-weight:700">${esc(c.name[0]||'?')}</div>`}
+          <div>
+            <div style="font-family:var(--font-display);font-weight:700;font-size:16px;text-transform:uppercase;color:var(--navy-deep)">${esc(c.name)}</div>
+            <div class="dim small">${leads.length} lead(s)</div>
+          </div>
+        </div>
+        <div class="small dim">${esc(c.description||'')}</div>
+      </div>`;
+    }).join('')}
+    <div class="card" style="border-top:3px solid var(--steel)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="width:38px;height:38px;border-radius:8px;background:var(--paper-dim);display:flex;align-items:center;justify-content:center;color:var(--steel);font-family:var(--font-display);font-weight:700">?</div>
+        <div>
+          <div style="font-family:var(--font-display);font-weight:700;font-size:16px;text-transform:uppercase;color:var(--navy-deep)">Unassigned</div>
+          <div class="dim small">${unassignedCount} lead(s)</div>
+        </div>
+      </div>
+      <div class="small dim">Leads not yet assigned to a podcast category.</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-title">Manage Categories</div>
+    <p class="dim small">Add categories, upload logos, and edit branding in <a href="#" onclick="goTo('settings');return false;" style="color:var(--blueprint)">Settings → Podcast Category Settings</a>.</p>
+  </div>`;
+}
+function viewPodcastCategoryDetail(id){
+  const c = podcastCat(id);
+  if(!c) return `<div class="empty-state"><h3>Category not found</h3></div>`;
+  const leads = state.leads.filter(l=>l.podcastCategoryId===id);
+  const count = st => leads.filter(l=>l.status===st).length;
+  const revs = leads.map(l=>parseFloat((l.estimatedRevenue||"0").replace(/[^0-9.]/g,''))||0).filter(n=>n>0);
+  const avgRev = revs.length ? (revs.reduce((a,b)=>a+b,0)/revs.length).toFixed(1) : "—";
+  const avgScore = leads.length ? Math.round(leads.reduce((a,l)=>a+(l.qualificationScore||0),0)/leads.length) : 0;
+  const byTrade = {}; leads.forEach(l=>{ byTrade[l.trade]=(byTrade[l.trade]||0)+1; });
+  window.__catData = byTrade;
+  return `
+  <div class="card" style="border-top:3px solid ${c.brandColor};margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:14px">
+      ${c.logoUrl? `<img src="${c.logoUrl}" style="width:54px;height:54px;object-fit:cover;border-radius:10px">` : `<div style="width:54px;height:54px;border-radius:10px;background:${c.brandColor};display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-display);font-weight:700;font-size:22px">${esc(c.name[0]||'?')}</div>`}
+      <div>
+        <div style="font-family:var(--font-display);font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy-deep)">${esc(c.name)}</div>
+        <div class="dim small">${esc(c.description||'')}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="goTo('podcast-categories')">← All Categories</button>
+    </div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="num">${leads.length}</div><div class="lbl">Total Leads</div></div>
+    <div class="kpi"><div class="num">${count("Qualified")}</div><div class="lbl">Qualified</div></div>
+    <div class="kpi"><div class="num">${count("Interested")}</div><div class="lbl">Interested</div></div>
+    <div class="kpi"><div class="num">${count("Booked")}</div><div class="lbl">Booked</div></div>
+    <div class="kpi"><div class="num">${count("Podcast Completed")}</div><div class="lbl">Completed</div></div>
+    <div class="kpi"><div class="num">${leads.filter(l=>l.nextFollowUpDate && l.nextFollowUpDate<=todayStr()).length}</div><div class="lbl">Follow-Ups Due</div></div>
+    <div class="kpi"><div class="num">$${avgRev}M</div><div class="lbl">Avg. Revenue</div></div>
+    <div class="kpi"><div class="num">${avgScore}</div><div class="lbl">Avg. Qual. Score</div></div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-title">Leads by Trade</div>
+      <canvas id="chartCatTrade" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="section-title">Leads in This Category</div>
+      <div style="max-height:260px;overflow-y:auto">
+        ${leads.map(l=>`<div class="fu-card"><div><b>${esc(leadName(l))}</b> — ${esc(l.businessName)}<div class="small dim">${esc(l.trade)} · ${esc(l.status)}</div></div><button class="btn btn-sm btn-outline" onclick="openLead('${l.id}')">Open</button></div>`).join('') || '<div class="dim small">No leads yet.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============ LEAD DETAIL MODAL ============ */
+function openLead(id){
+  currentLeadId = id;
+  const l = state.leads.find(x=>x.id===id);
+  const band = qualBand(l.qualificationScore);
+  const overlay = document.createElement('div');
+  overlay.className='modal-overlay'; overlay.id='lead-modal-overlay';
+  overlay.innerHTML = `<div class="modal">
+    <div class="modal-head">
+      <div>
+        <div style="font-family:var(--font-display);font-weight:700;font-size:22px;text-transform:uppercase;color:var(--navy-deep)">${esc(leadName(l))}</div>
+        <div class="dim small">${esc(l.businessName)} · ${esc(l.trade)} · ${esc(l.city)}, ${esc(l.state)} · <span class="mono">${esc(l.estimatedRevenue)}</span></div>
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <span class="status-chip">${esc(l.status)}</span>
+          <span class="badge pri-${l.priority}">${l.priority}</span>
+          <span class="badge qual-${band}">${band} ${l.qualificationScore}</span>
+        </div>
+      </div>
+      <button class="close-x" onclick="closeLeadModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tabbar">
+        ${["Overview","Outreach","Notes","Qualification","Podcast","Activity"].map((t,i)=>`<button class="tab-btn ${i===0?'active':''}" data-tab="${t}" onclick="switchTab('${t}')">${t}</button>`).join('')}
+      </div>
+      <div id="tab-content"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" onclick="deleteLead('${l.id}')">Delete Lead</button>
+      <button class="btn btn-outline" onclick="closeLeadModal()">Close</button>
+      <button class="btn btn-primary" onclick="saveLead('${l.id}')">Save Changes</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  switchTab('Overview');
+}
+function closeLeadModal(){ const el=document.getElementById('lead-modal-overlay'); if(el) el.remove(); currentLeadId=null; }
+function field(label, inputHtml, full){ return `<div class="form-field ${full?'fs-full':''}"><label>${label}</label>${inputHtml}</div>`; }
+function inp(id,val,type){ return `<input id="${id}" type="${type||'text'}" value="${esc(val)}">`; }
+function sel(id,val,opts){ return `<select id="${id}">${opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')}</select>`; }
+
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  const l = state.leads.find(x=>x.id===currentLeadId);
+  const c = document.getElementById('tab-content');
+  if(tab==='Overview'){
+    c.innerHTML = `<div class="form-grid">
+      ${field('First Name', inp('f-firstName',l.firstName))}
+      ${field('Last Name', inp('f-lastName',l.lastName))}
+      ${field('Job Title', inp('f-jobTitle',l.jobTitle))}
+      ${field('Business Name', inp('f-businessName',l.businessName))}
+      ${field('Legal / Government Name', inp('f-legalName',l.legalName))}
+      ${field('Trade', sel('f-trade',l.trade,Object.values(state.trades).flat()))}
+      ${field('City', inp('f-city',l.city))}
+      ${field('State', inp('f-state',l.state))}
+      ${field('Country', inp('f-country',l.country))}
+      ${field('Years in Business', inp('f-yearsInBusiness',l.yearsInBusiness,'number'))}
+      ${field('Employees', inp('f-employees',l.employees,'number'))}
+      ${field('Estimated Revenue', inp('f-estimatedRevenue',l.estimatedRevenue))}
+      ${field('Revenue Confidence', sel('f-revenueConfidence',l.revenueConfidence,["Verified","High Confidence","Medium Confidence","Low Confidence","Unknown"]))}
+      ${field('Verified Revenue', inp('f-verifiedRevenue',l.verifiedRevenue))}
+      ${field('Website', inp('f-website',l.website))}
+      ${field('Email', inp('f-email',l.email))}
+      ${field('Phone', inp('f-phone',l.phone))}
+      ${field('Instagram URL', inp('f-instagram',l.instagram))}
+      ${field('Facebook URL', inp('f-facebook',l.facebook))}
+      ${field('LinkedIn URL', inp('f-linkedin',l.linkedin))}
+      ${field('Status', sel('f-status',l.status,ALL_STATUSES))}
+      ${field('Priority', sel('f-priority',l.priority,["LOW","MEDIUM","HIGH","URGENT"]))}
+      ${field('Source', sel('f-source',l.source,SOURCES))}
+      ${field('Assigned To', inp('f-assignedTo',l.assignedTo))}
+      ${field('Next Follow-Up Date', inp('f-nextFollowUpDate',l.nextFollowUpDate,'date'))}
+      ${field('Research Status', sel('f-researchStatus',l.researchStatus,["Not Researched","Researching","Research Complete","Needs Verification","Verified"]))}
+      ${field('Podcast Category', `<select id="f-podcastCategoryId">${(state.podcastCategories||[]).map(p=>`<option value="${p.id}" ${l.podcastCategoryId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}<option value="" ${!l.podcastCategoryId?'selected':''}>Unassigned</option></select>`)}
+    </div>
+    <div style="margin-top:12px">${icpBadgeHtml(icpStatus(l))} <span class="dim small">— auto-evaluated from revenue, trade, and title every time this lead is saved.</span></div>
+    <div style="margin-top:12px">
+      <label style="font-size:10.5px;font-weight:700;color:var(--steel);text-transform:uppercase">Tags</label><br>
+      ${l.tags.map(t=>`<span class="tag-pill rm" onclick="removeTag('${l.id}','${esc(t)}')">${esc(t)}</span>`).join('')}
+      <select id="add-tag-sel" style="margin-top:6px">${['',...state.tags].map(t=>`<option>${t}</option>`).join('')}</select>
+      <button class="btn btn-sm btn-outline" onclick="addTagToLead('${l.id}')">+ Add Tag</button>
+    </div>`;
+  } else if(tab==='Outreach'){
+    c.innerHTML = `<div class="form-grid">
+      ${field('Last Contact Date', inp('f-lastContactDate',l.lastContactDate,'date'))}
+      ${field('Last Contact Method', sel('f-lastContactMethod',l.lastContactMethod||'Other',PLATFORMS))}
+      ${field('# Follow-Ups So Far', inp('f-numFollowUps',l.numFollowUps,'number'))}
+    </div>
+    <div style="margin-top:14px">
+      <button class="btn btn-sm btn-primary" onclick="logOutreach('${l.id}')">+ Log Outreach Attempt</button>
+    </div>
+    <div style="margin-top:10px">
+      ${(l.activity.filter(a=>/outreach|contact|dm|email|call/i.test(a.text))).map(a=>`<div class="activity-item"><div class="adot"></div><div><div class="adate">${fmtDate(a.date)}</div><div class="atext">${esc(a.text)}</div></div></div>`).join('') || '<div class="dim small">No outreach logged yet.</div>'}
+    </div>`;
+  } else if(tab==='Notes'){
+    c.innerHTML = `<textarea id="new-note" placeholder="Add an internal note…" style="width:100%;min-height:60px;padding:8px;border:1px solid var(--line);border-radius:6px"></textarea>
+    <button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="addNote('${l.id}')">Add Note</button>
+    <div style="margin-top:14px">
+      ${l.notes.slice().reverse().map(n=>`<div class="activity-item"><div class="adot" style="background:var(--orange)"></div><div><div class="adate">${fmtDate(n.date)} — ${esc(n.user)}</div><div class="atext">${esc(n.text)}</div></div></div>`).join('') || '<div class="dim small">No notes yet.</div>'}
+    </div>`;
+  } else if(tab==='Qualification'){
+    const q = state.settings.qual;
+    c.innerHTML = `<div class="form-grid">
+      ${field('Qualification Score', inp('f-qualificationScore',l.qualificationScore,'number'))}
+      ${field('Story / Experience', `<textarea id="f-story">${esc(l.story)}</textarea>`, true)}
+      ${field('Disqualification Reason', inp('f-disqualificationReason',l.disqualificationReason), true)}
+    </div>
+    <div class="chk-row">
+      <label><input type="checkbox" id="f-revenueQualified" ${l.revenueQualified?'checked':''}> Revenue Qualified</label>
+      <label><input type="checkbox" id="f-businessOwner" ${l.businessOwner?'checked':''}> Business Owner</label>
+      <label><input type="checkbox" id="f-blueCollarTrade" ${l.blueCollarTrade?'checked':''}> Blue-Collar Trade</label>
+      <label><input type="checkbox" id="f-podcastFit" ${l.podcastFit?'checked':''}> Podcast Fit</label>
+    </div>
+    <button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="recalcScore('${l.id}')">Recalculate Score from Criteria</button>
+    <div class="dim small" style="margin-top:8px">Criteria (edit in Settings): $1-3M +${q.rev1_3} · $3-5M +${q.rev3_5} · $5-10M +${q.rev5_10} · $10M+ +${q.rev10plus} · Owner +${q.owner} · Blue collar +${q.blueCollar} · Story +${q.story} · Social +${q.social} · Team(20+) +${q.team} · Podcast fit +${q.podcastFit}</div>`;
+  } else if(tab==='Podcast'){
+    c.innerHTML = `<div class="form-grid">
+      ${field('Interested Date', inp('f-p-interestedDate',l.podcast.interestedDate,'date'))}
+      ${field('Qualified Date', inp('f-p-qualifiedDate',l.podcast.qualifiedDate,'date'))}
+      ${field('Booking Date', inp('f-p-bookingDate',l.podcast.bookingDate,'date'))}
+      ${field('Podcast Date', inp('f-p-podcastDate',l.podcast.podcastDate,'date'))}
+      ${field('Completed Date', inp('f-p-completedDate',l.podcast.completedDate,'date'))}
+      ${field('Episode Number', inp('f-p-episodeNumber',l.podcast.episodeNumber))}
+      ${field('Recording Link', inp('f-p-recordingLink',l.podcast.recordingLink), true)}
+    </div>`;
+  } else if(tab==='Activity'){
+    c.innerHTML = l.activity.map(a=>`<div class="activity-item"><div class="adot"></div><div><div class="adate">${fmtDate(a.date)} — ${esc(a.user)}</div><div class="atext">${esc(a.text)}</div></div></div>`).join('') || '<div class="dim small">No activity yet.</div>';
+  }
+}
+function addTagToLead(id){ const t=document.getElementById('add-tag-sel').value; if(!t) return; const l=state.leads.find(x=>x.id===id); if(!l.tags.includes(t)) l.tags.push(t); persist(); switchTab('Overview'); }
+function removeTag(id,t){ const l=state.leads.find(x=>x.id===id); l.tags=l.tags.filter(x=>x!==t); persist(); switchTab('Overview'); }
+function addNote(id){ const v=document.getElementById('new-note').value.trim(); if(!v) return; const l=state.leads.find(x=>x.id===id); l.notes.push({date:todayStr(),text:v,user:state.currentUser}); logActivity(l,'Note added.'); persist(); switchTab('Notes'); }
+function logOutreach(id){
+  const platform = prompt("Outreach platform (Instagram / Facebook / Email / Phone / LinkedIn / SMS / Other):","Instagram"); if(!platform) return;
+  const detail = prompt("What happened? (e.g. 'DM sent', 'Follow-up sent', 'Left voicemail')","Sent"); if(detail===null) return;
+  const l = state.leads.find(x=>x.id===id);
+  l.lastContactDate = todayStr(); l.lastContactMethod = platform; l.numFollowUps=(l.numFollowUps||0)+1;
+  if(!l.dateFirstContacted) l.dateFirstContacted = todayStr();
+  logActivity(l, `${platform} — ${detail}`);
+  persist(); switchTab('Outreach');
+}
+function recalcScore(id){ const l=state.leads.find(x=>x.id===id); l.qualificationScore = computeScore(l); persist(); switchTab('Qualification'); }
+function deleteLead(id){ if(!confirm('Delete this lead permanently?')) return; state.leads = state.leads.filter(x=>x.id!==id); persist(); closeLeadModal(); goTo(currentView); }
+function saveLead(id){
+  const l = state.leads.find(x=>x.id===id);
+  const g = (fid)=>document.getElementById(fid);
+  const setIf = (fid,key,isNum,isChk)=>{ const el=g(fid); if(!el) return; l[key] = isChk? el.checked : (isNum? Number(el.value)||0 : el.value); };
+  ['firstName','lastName','jobTitle','businessName','legalName','trade','city','state','country','website','email','phone','instagram','facebook','linkedin','status','priority','source','assignedTo','nextFollowUpDate','researchStatus','estimatedRevenue','revenueConfidence','verifiedRevenue','story','disqualificationReason','lastContactDate','lastContactMethod','podcastCategoryId'].forEach(k=>setIf('f-'+k,k,false,false));
+  ['yearsInBusiness','employees','numFollowUps','qualificationScore'].forEach(k=>setIf('f-'+k,k,true,false));
+  ['revenueQualified','businessOwner','blueCollarTrade','podcastFit'].forEach(k=>setIf('f-'+k,k,false,true));
+  ['interestedDate','qualifiedDate','bookingDate','podcastDate','completedDate','episodeNumber','recordingLink'].forEach(k=>{ const el=g('f-p-'+k); if(el) l.podcast[k]=el.value; });
+  const newICP = icpStatus(l);
+  l.revenueQualified = parseFloat((l.estimatedRevenue||"0").replace(/[^0-9.]/g,''))>=(state.settings.icp.minRevenue||3);
+  logActivity(l,`Lead details updated. ICP status: ${newICP.replace('_',' ')}.`);
+  persist();
+  closeLeadModal();
+  goTo(currentView);
+}
+
+/* ============ QUICK ADD ============ */
+function openQuickAdd(){
+  const overlay = document.createElement('div'); overlay.className='modal-overlay'; overlay.id='qa-overlay';
+  overlay.innerHTML = `<div class="modal" style="max-width:560px">
+    <div class="modal-head"><div style="font-family:var(--font-display);font-weight:700;font-size:20px;text-transform:uppercase">Quick Add Lead</div><button class="close-x" onclick="document.getElementById('qa-overlay').remove()">✕</button></div>
+    <div class="modal-body"><div class="form-grid" style="grid-template-columns:1fr 1fr">
+      ${field('First Name', inp('qa-firstName',''))}
+      ${field('Last Name', inp('qa-lastName',''))}
+      ${field('Business', inp('qa-businessName',''))}
+      ${field('Job Title', inp('qa-jobTitle',''))}
+      ${field('Trade', sel('qa-trade','',Object.values(state.trades).flat()))}
+      ${field('Estimated Revenue', inp('qa-revenue',''))}
+      ${field('City', inp('qa-city',''))}
+      ${field('State', inp('qa-state',''))}
+      ${field('Email', inp('qa-email',''))}
+      ${field('Phone', inp('qa-phone',''))}
+      ${field('Source', sel('qa-source','Manual Entry',SOURCES))}
+      ${field('Status', sel('qa-status','New Lead',ALL_STATUSES))}
+      ${field('Podcast Category', `<select id="qa-podcast">${(state.podcastCategories||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}<option value="">Unassigned</option></select>`)}
+      ${field('Follow-Up Date', inp('qa-fu','','date'))}
+      ${field('Notes', `<textarea id="qa-notes"></textarea>`, true)}
+    </div></div>
+    <div class="modal-foot"><button class="btn btn-outline" onclick="document.getElementById('qa-overlay').remove()">Cancel</button><button class="btn btn-primary" onclick="submitQuickAdd()">Save Lead</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+function submitQuickAdd(){
+  const g = id=>document.getElementById(id).value;
+  const biz = g('qa-businessName'), email=g('qa-email'), phone=g('qa-phone');
+  const dupe = state.leads.find(l => (email && l.email===email) || (phone && l.phone===phone) || (biz && l.businessName.toLowerCase()===biz.toLowerCase()));
+  if(dupe && !confirm(`Possible duplicate lead detected (matches "${dupe.businessName}"). Add anyway?`)) return;
+  const nl = {
+    id:uid('lead'), firstName:g('qa-firstName'), lastName:g('qa-lastName'), preferredName:"", jobTitle:g('qa-jobTitle'), businessName:biz, legalName:"Unknown / Not Verified",
+    trade:g('qa-trade'), tradeCategory:Object.keys(state.trades).find(k=>state.trades[k].includes(g('qa-trade')))||"", subTrade:"", city:g('qa-city'), state:g('qa-state'), country:"USA",
+    yearsInBusiness:"", employees:"", estimatedRevenue:g('qa-revenue'), revenueConfidence:"Unknown", revenueSource:"", verifiedRevenue:"",
+    website:"", email, phone, instagram:"", facebook:"", linkedin:"", podcastCategoryId:g('qa-podcast'),
+    source:g('qa-source'), platform:"", dateAdded:todayStr(), dateFirstContacted:"", lastContactDate:"", nextFollowUpDate:g('qa-fu'),
+    numFollowUps:0, lastContactMethod:"", status:g('qa-status'), priority:"MEDIUM", qualificationScore:0, revenueQualified:false, businessOwner:true, blueCollarTrade:true, podcastFit:false,
+    story:"", disqualificationReason:"", researchStatus:"Not Researched",
+    podcast:{interestedDate:"",qualifiedDate:"",bookingDate:"",podcastDate:"",completedDate:"",episodeNumber:"",recordingLink:""},
+    assignedTo:state.currentUser, tags:[], notes: g('qa-notes')? [{date:todayStr(),text:g('qa-notes'),user:state.currentUser}]:[],
+    activity:[{date:todayStr(),text:"Lead created via Quick Add.",user:state.currentUser}]
+  };
+  nl.qualificationScore = computeScore(nl);
+  nl.revenueQualified = parseFloat((nl.estimatedRevenue||"0").replace(/[^0-9.]/g,''))>=(state.settings.icp.minRevenue||3);
+  state.leads.push(nl);
+  persist(); document.getElementById('qa-overlay').remove(); goTo(currentView);
+}
+
+/* ============ AI LEAD GENERATOR ============ */
+const US_STATES = ["All States","AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+function viewGenerator(){
+  const icp = state.settings.icp;
+  return `<div class="card" style="max-width:680px">
+    <div class="section-title">Blue-Collar ICP</div>
+    <p class="dim small" style="margin-bottom:12px">Searches the live web for real businesses matching the ICP. Nothing is invented — every result lands in the <b>Generated Leads</b> review queue marked unverified, and you approve or reject each one before it enters the CRM. Defaults come from your saved ICP (<a href="#" onclick="goTo('settings');return false;" style="color:var(--blueprint)">edit in Settings</a>) and always target $3M+ blue-collar CEOs/founders/owners unless you change them below.</p>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+      ${field('Minimum Revenue', inp('gen-revenue',`$${(icp.minRevenue*1000000).toLocaleString()}`))}
+      ${field('Trade', sel('gen-trade','All Blue-Collar Trades',['All Blue-Collar Trades',...Object.values(state.trades).flat()]))}
+      ${field('Position', inp('gen-title',icp.executiveRoles))}
+      ${field('Country', sel('gen-country','United States',['United States']))}
+      ${field('State', sel('gen-state','All States',US_STATES))}
+      ${field('Number of Leads (max 10 per run)', inp('gen-count','25','number'))}
+      ${field('Podcast Category', `<select id="gen-podcast-cat">${(state.podcastCategories||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}<option value="">Unassigned</option></select>`)}
+    </div>
+    <button class="btn btn-primary" style="margin-top:10px" onclick="runGenerator()">Generate ICP Leads</button>
+    <div id="gen-status" style="margin-top:12px"></div>
+  </div>`;
+}
+async function runGenerator(){
+  const revenue=document.getElementById('gen-revenue').value;
+  const tradeSel=document.getElementById('gen-trade').value;
+  const trade = tradeSel==='All Blue-Collar Trades' ? '' : tradeSel;
+  const title=document.getElementById('gen-title').value;
+  const country=document.getElementById('gen-country').value;
+  const st=document.getElementById('gen-state').value;
+  const stateFilter = st==='All States' ? '' : st;
+  const podcastCategoryId = document.getElementById('gen-podcast-cat').value;
+  let count=Math.min(10, Math.max(1, Number(document.getElementById('gen-count').value)||10)); // capped per run regardless of requested total
+  const location = [stateFilter, country].filter(Boolean).join(', ') || country;
+  const statusEl = document.getElementById('gen-status');
+  statusEl.innerHTML = `<div class="gen-loading"><div class="spinner"></div> Searching the web for real ${esc(trade||'blue-collar')} CEOs/founders/owners in ${esc(location)} doing ${esc(revenue)}+…</div>`;
+  try{
+    const prompt = `You are a lead-research assistant for a podcast CRM. The Ideal Customer Profile (ICP) is STRICT and non-negotiable: businesses doing ${revenue}+ in annual revenue, operating in a blue-collar trade, run by a CEO, Founder, Owner, Co-Founder, President, or Managing Partner (priority order: Founder, CEO, Owner, Co-Founder, President, Managing Partner). Use web search to find REAL, currently-operating businesses matching:
+Trade: ${trade||"any blue-collar trade"}
+Location: ${location}
+Minimum revenue: ${revenue}
+Target role: ${title}
+Count: ${count}
+
+Rules:
+- Only include businesses you can find real evidence for via search (company site, directory listing, news, LinkedIn, BBB, industry association, etc). Never invent a company or person.
+- Do NOT include employees, sales/ops/marketing/office managers, or technicians — only CEO/Founder/Owner/Co-Founder/President/Managing Partner level contacts.
+- Do NOT include businesses below the minimum revenue unless you cannot verify revenue at all — in that case include them but mark revenueConfidence "Unknown".
+- If you cannot verify a detail (revenue, owner name, employee count), write "Unknown" rather than guessing, and set revenueConfidence to "Unknown" or "Low Confidence" accordingly. Only use "Verified" or "High Confidence" if a source clearly states it.
+- Always include a sourceUrl for each lead pointing to where you found it.
+- If you find fewer than ${count} genuinely verifiable businesses meeting the ICP, return fewer rather than padding with guesses.
+
+Respond with ONLY a raw JSON array (no markdown fences, no prose), each item shaped exactly like:
+{"name":"Full Name or Unknown","title":"","business":"","trade":"","tradeCategory":"","location":"City, ST","revenue":"e.g. $3.2M or Unknown","revenueConfidence":"Verified|High Confidence|Medium Confidence|Low Confidence|Unknown","website":"","sourceUrl":"","notes":"1-2 sentence summary of what you found and why it fits the ICP"}`;
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:1500, messages:[{role:"user",content:prompt}], tools:[{type:"web_search_20250305",name:"web_search"}] })
+    });
+    const data = await resp.json();
+    const textBlocks = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\\n');
+    let clean = textBlocks.replace(/```json|```/g,'').trim();
+    const match = clean.match(/\\[[\\s\\S]*\\]/);
+    const arr = JSON.parse(match? match[0] : clean);
+    arr.forEach(g=>{ g.tradeCategory = g.tradeCategory || Object.keys(state.trades).find(k=>state.trades[k].includes(g.trade)) || Object.keys(state.trades)[0]; g.podcastCategoryId = podcastCategoryId||""; });
+    state.generatedQueue.push(...arr);
+    persist();
+    statusEl.innerHTML = `<div style="color:var(--green);font-weight:600">✓ Found ${arr.length} candidate lead(s). <a href="#" onclick="goTo('leads-generated');return false;" style="color:var(--blueprint)">Review them in the queue →</a></div>`;
+  }catch(e){
+    statusEl.innerHTML = `<div style="color:var(--red)">Something went wrong reaching the research service. Try again, or narrow your criteria. (${esc(e.message||'')})</div>`;
+  }
+}
+
+/* ============ AI ASSISTANT ============ */
+let chatHistory = [];
+function viewAssistant(){
+  return `<div class="card" style="max-width:760px">
+    <div class="section-title">Ask about your leads</div>
+    <p class="dim small" style="margin-bottom:10px">Answers are generated only from what's actually stored in your CRM right now — nothing is invented. Try: "who needs follow-up today?", "show me my hottest leads", "which trade has the most booked podcasts?"</p>
+    <div id="chat-log" style="max-height:360px;overflow-y:auto;margin-bottom:10px">${chatHistory.map(m=>`<div class="chat-msg ${m.role}">${esc(m.text)}</div>`).join('')}</div>
+    <div style="display:flex;gap:8px">
+      <input id="chat-input" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px" placeholder="Ask a question about your pipeline…" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn btn-primary" onclick="sendChat()">Ask</button>
+    </div>
+  </div>`;
+}
+async function sendChat(){
+  const inputEl = document.getElementById('chat-input');
+  const q = inputEl.value.trim(); if(!q) return;
+  chatHistory.push({role:'user',text:q}); inputEl.value='';
+  chatHistory.push({role:'ai',text:'…thinking'});
+  renderView();
+  const summary = state.leads.map(l=>({name:leadName(l),business:l.businessName,trade:l.trade,city:l.city,state:l.state,revenue:l.estimatedRevenue,status:l.status,priority:l.priority,score:l.qualificationScore,nextFollowUp:l.nextFollowUpDate,source:l.source,tags:l.tags,podcastEpisode:l.podcast.episodeNumber})).slice(0,400);
+  try{
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:1000, messages:[{role:"user",content:`You are a CRM assistant for a podcast lead pipeline. Answer ONLY using the data below — never invent leads or facts not present here. Be concise and concrete (name specific leads when relevant). Today's date: ${todayStr()}.\\n\\nDATA:\\n${JSON.stringify(summary)}\\n\\nQUESTION: ${q}`}] })
+    });
+    const data = await resp.json();
+    const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\\n') || "I couldn't generate a response — try rephrasing.";
+    chatHistory[chatHistory.length-1] = {role:'ai',text};
+  }catch(e){
+    chatHistory[chatHistory.length-1] = {role:'ai',text:"I couldn't reach the assistant service. Please try again."};
+  }
+  renderView();
+}
+
+/* ============ SETTINGS ============ */
+function viewSettings(){
+  const q = state.settings.qual;
+  return `<div class="grid-2">
+    <div class="card">
+      <div class="section-title">Trade Categories</div>
+      ${Object.keys(state.trades).map(cat=>`
+        <div style="margin-bottom:10px">
+          <b>${esc(cat)}</b>
+          <div style="margin-top:4px">${state.trades[cat].map(t=>`<span class="tag-pill rm" onclick="removeTrade('${esc(cat)}','${esc(t)}')">${esc(t)}</span>`).join('')}</div>
+          <div style="margin-top:6px;display:flex;gap:6px"><input id="newtrade-${esc(cat).replace(/[^a-z0-9]/gi,'')}" placeholder="Add trade…" style="flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:6px"><button class="btn btn-sm btn-outline" onclick="addTrade('${esc(cat)}')">Add</button></div>
+        </div>`).join('')}
+      <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+        <input id="new-category" placeholder="New category name…" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px"> <button class="btn btn-sm btn-outline" onclick="addCategory()">Add Category</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Tags</div>
+      <div>${state.tags.map(t=>`<span class="tag-pill rm" onclick="removeGlobalTag('${esc(t)}')">${esc(t)}</span>`).join('')}</div>
+      <div style="margin-top:8px;display:flex;gap:6px"><input id="new-tag" placeholder="New tag…" style="flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:6px"><button class="btn btn-sm btn-outline" onclick="addGlobalTag()">Add</button></div>
+
+      <div class="section-title" style="margin-top:20px">Pipeline Statuses</div>
+      <ul class="settings-list">${state.pipeline.map((s,i)=>`<li><span>${i+1}. ${esc(s)}</span><span><button class="btn btn-sm btn-ghost" onclick="renameStatus(${i})">Rename</button><button class="btn btn-sm btn-ghost" onclick="removeStatus(${i})">Remove</button></span></li>`).join('')}</ul>
+      <div style="margin-top:8px;display:flex;gap:6px"><input id="new-status" placeholder="New status…" style="flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:6px"><button class="btn btn-sm btn-outline" onclick="addStatus()">Add</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-title">Ideal Customer Profile (ICP)</div>
+    <p class="dim small" style="margin-bottom:10px">Strict 3-factor ICP used everywhere: revenue + blue-collar trade + executive title. Defines the dashboard's ICP KPIs, the ICP Leads page, lead table filters, and the AI Lead Generator's defaults.</p>
+    <div class="form-grid" style="grid-template-columns:1fr 2fr">
+      ${field('Minimum Revenue ($M)', inp('icp-minRevenue',state.settings.icp.minRevenue,'number'))}
+      ${field('Executive Titles (comma-separated, priority order)', inp('icp-executiveRoles',state.settings.icp.executiveRoles))}
+    </div>
+    <button class="btn btn-sm btn-primary" style="margin-top:10px" onclick="saveICP()">Save ICP</button>
+  </div>
+  <div class="card">
+    <div class="section-title">Podcast Category Settings</div>
+    <p class="dim small" style="margin-bottom:12px">Every lead can be assigned to a podcast category. Upload a logo, set the brand color, and edit the name/description — nothing here is hard-coded.</p>
+    ${(state.podcastCategories||[]).map((c,i)=>`
+      <div class="card" style="border-left:4px solid ${c.brandColor};margin-bottom:12px">
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div style="text-align:center">
+            ${c.logoUrl? `<img src="${c.logoUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:10px;display:block;margin-bottom:6px">` : `<div style="width:64px;height:64px;border-radius:10px;background:${c.brandColor};display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-display);font-weight:700;font-size:24px;margin-bottom:6px">${esc((c.name||'?')[0])}</div>`}
+            <input type="file" accept="image/*" id="logo-input-${i}" style="display:none" onchange="uploadLogo(${i},this)">
+            <button class="btn btn-sm btn-outline" onclick="document.getElementById('logo-input-${i}').click()">${c.logoUrl?'Replace':'Upload'} Logo</button>
+            ${c.logoUrl? `<button class="btn btn-sm btn-ghost" onclick="removeLogo(${i})">Remove</button>`:''}
+          </div>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;flex:1;min-width:280px">
+            ${field('Podcast Name', inp('cat-name-'+i, c.name))}
+            ${field('Brand Color', `<input id="cat-color-${i}" type="color" value="${esc(c.brandColor)}" style="width:100%;height:34px;padding:2px;border:1px solid var(--line);border-radius:6px">`)}
+            ${field('Description', `<textarea id="cat-desc-${i}">${esc(c.description)}</textarea>`, true)}
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-sm btn-primary" onclick="saveCategoryMeta(${i})">Save Changes</button>
+          <button class="btn btn-sm btn-danger" onclick="removeCategory(${i})">Delete Category</button>
+        </div>
+      </div>`).join('')}
+    <div style="margin-top:10px;display:flex;gap:6px">
+      <input id="new-podcast-cat" placeholder="New podcast category name…" style="flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:6px">
+      <button class="btn btn-sm btn-outline" onclick="addPodcastCategory()">Add Category</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-title">Qualification Scoring Rules (0–100)</div>
+    <div class="form-grid" style="grid-template-columns:repeat(5,1fr)">
+      ${field('Revenue $1-3M', inp('q-rev1_3',q.rev1_3,'number'))}
+      ${field('Revenue $3-5M', inp('q-rev3_5',q.rev3_5,'number'))}
+      ${field('Revenue $5-10M', inp('q-rev5_10',q.rev5_10,'number'))}
+      ${field('Revenue $10M+', inp('q-rev10plus',q.rev10plus,'number'))}
+      ${field('Owner/Founder', inp('q-owner',q.owner,'number'))}
+      ${field('Blue-Collar Trade', inp('q-blueCollar',q.blueCollar,'number'))}
+      ${field('Interesting Story', inp('q-story',q.story,'number'))}
+      ${field('Strong Social', inp('q-social',q.social,'number'))}
+      ${field('Team 20+', inp('q-team',q.team,'number'))}
+      ${field('Podcast Fit', inp('q-podcastFit',q.podcastFit,'number'))}
+    </div>
+    <button class="btn btn-sm btn-primary" style="margin-top:10px" onclick="saveQualRules()">Save Rules</button>
+    <button class="btn btn-sm btn-outline" style="margin-top:10px" onclick="recalcAllScores()">Recalculate All Lead Scores</button>
+  </div>
+  <div class="card">
+    <div class="section-title">Data</div>
+    <p class="small dim">Reset to fresh seed demo data (removes ALL current shared leads for everyone using this app).</p>
+    <button class="btn btn-danger" style="margin-top:8px" onclick="resetDemoData()">Reset to Demo Data</button>
+  </div>`;
+}
+function addTrade(cat){ const el=document.getElementById('newtrade-'+cat.replace(/[^a-z0-9]/gi,'')); const v=el.value.trim(); if(!v) return; state.trades[cat].push(v); persist(); goTo('settings'); }
+function removeTrade(cat,t){ state.trades[cat]=state.trades[cat].filter(x=>x!==t); persist(); goTo('settings'); }
+function addCategory(){ const v=document.getElementById('new-category').value.trim(); if(!v) return; state.trades[v]=[]; persist(); goTo('settings'); }
+function addGlobalTag(){ const v=document.getElementById('new-tag').value.trim(); if(!v||state.tags.includes(v)) return; state.tags.push(v); persist(); goTo('settings'); }
+function removeGlobalTag(t){ state.tags=state.tags.filter(x=>x!==t); persist(); goTo('settings'); }
+function addStatus(){ const v=document.getElementById('new-status').value.trim(); if(!v) return; state.pipeline.push(v); persist(); goTo('settings'); }
+function removeStatus(i){ if(!confirm('Remove this status? Leads currently on it will keep the old label.')) return; state.pipeline.splice(i,1); persist(); goTo('settings'); }
+function renameStatus(i){ const nv = prompt('Rename status to:', state.pipeline[i]); if(!nv) return; const old=state.pipeline[i]; state.pipeline[i]=nv; state.leads.forEach(l=>{ if(l.status===old) l.status=nv; }); persist(); goTo('settings'); }
+function saveICP(){
+  state.settings.icp.minRevenue = Number(document.getElementById('icp-minRevenue').value)||0;
+  state.settings.icp.executiveRoles = document.getElementById('icp-executiveRoles').value;
+  persist(); goTo('settings');
+}
+/* ---- Podcast Category admin ---- */
+function uploadLogo(i, inputEl){
+  const file = inputEl.files[0]; if(!file) return;
+  if(file.size > 1500000){ alert("Please choose a smaller image (under ~1.5MB) — logos are stored inline."); return; }
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    state.podcastCategories[i].logoUrl = reader.result;
+    state.podcastCategories[i].updatedAt = todayStr();
+    persist(); goTo('settings');
+  };
+  reader.readAsDataURL(file);
+}
+function removeLogo(i){ state.podcastCategories[i].logoUrl=""; persist(); goTo('settings'); }
+function saveCategoryMeta(i){
+  const c = state.podcastCategories[i];
+  c.name = document.getElementById('cat-name-'+i).value || c.name;
+  c.brandColor = document.getElementById('cat-color-'+i).value || c.brandColor;
+  c.description = document.getElementById('cat-desc-'+i).value;
+  c.updatedAt = todayStr();
+  persist(); goTo('settings');
+}
+function removeCategory(i){
+  const c = state.podcastCategories[i];
+  if(!confirm(`Delete "${c.name}"? Leads assigned to it will become Unassigned.`)) return;
+  state.leads.forEach(l=>{ if(l.podcastCategoryId===c.id) l.podcastCategoryId=""; });
+  state.podcastCategories.splice(i,1);
+  persist(); goTo('settings');
+}
+function addPodcastCategory(){
+  const name = document.getElementById('new-podcast-cat').value.trim(); if(!name) return;
+  const palette = ['#FF6A1A','#1B4F72','#1F8A5F','#B9800A','#C23B3B','#5C7A89'];
+  state.podcastCategories.push({ id: uid('podcast'), name, description:"", logoUrl:"", brandColor: palette[state.podcastCategories.length % palette.length], active:true, createdAt:todayStr(), updatedAt:todayStr() });
+  persist(); goTo('settings');
+}
+function saveQualRules(){
+  const q=state.settings.qual;
+  ['rev1_3','rev3_5','rev5_10','rev10plus','owner','blueCollar','story','social','team','podcastFit'].forEach(k=>{ q[k]=Number(document.getElementById('q-'+k).value)||0; });
+  persist(); goTo('settings');
+}
+function recalcAllScores(){ state.leads.forEach(l=>{ l.qualificationScore=computeScore(l); }); persist(); alert('All scores recalculated.'); goTo('settings'); }
+function resetDemoData(){ if(!confirm('This wipes all shared CRM data for everyone using this app and reloads fresh demo data. Continue?')) return; state = defaultState(); persist(true); goTo('dashboard'); }
+
+/* ============ EXPORT ============ */
+function exportCSV(){
+  const cols = ["firstName","lastName","businessName","trade","city","state","estimatedRevenue","status","priority","qualificationScore","source","email","phone","nextFollowUpDate"];
+  const rows = filteredLeads().map(l=>cols.map(c=>`"${(l[c]??'').toString().replace(/"/g,'""')}"`).join(','));
+  const csv = cols.join(',')+"\\n"+rows.join('\\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='blue-collar-crm-leads.csv'; a.click();
+}
+
+/* ============ INIT ============ */
+async function afterRender(){
+  if(currentView==='dashboard') drawDashCharts();
+  if(currentView==='podcast-category-detail') drawCatChart();
+  renderBulkBar();
+}
+function drawCatChart(){
+  const el = document.getElementById('chartCatTrade'); if(!el || !window.__catData) return;
+  const palette = ['#1B4F72','#FF6A1A','#5C7A89','#1F8A5F','#B9800A','#C23B3B','#0B2A3D'];
+  new Chart(el, {type:'bar', data:{labels:Object.keys(window.__catData), datasets:[{data:Object.values(window.__catData), backgroundColor:palette}]}, options:{indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}}}});
+}
+async function init(){
+  await loadState();
+  renderNav();
+  goTo('dashboard');
+  document.getElementById('global-search').addEventListener('input', ()=>{ if(currentView==='leads-all') applyFilters(); });
+  document.getElementById('export-btn').addEventListener('click', exportCSV);
+  document.getElementById('quick-add-fab').addEventListener('click', openQuickAdd);
+}
+init();
+</script>
+</body>
+</html>
